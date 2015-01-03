@@ -53,8 +53,7 @@ run(Module) ->
     ToRun = lists:flatten([BeforeSuite, FunsWithCallbacks, AfterSuite]),
     TryTest = fun (Test) ->
         try
-            Test(),
-            io:format("~s.~s", [?cgreen, ?cclean])
+            Test()
         catch
             _:Error ->
                 io:format("~sF~s", [?cred, ?cclean]),
@@ -92,7 +91,8 @@ testfuns(Module) ->
     MakeApplicative = fun({FunName, _}) ->
         fun() ->
             inc(tests),
-            Module:FunName()
+            Module:FunName(),
+            io:format("~s.~s", [?cgreen, ?cclean])
         end
     end,
     lists:map(MakeApplicative, shuffle_list(TestFuns)).

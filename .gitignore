@@ -1,17 +1,6 @@
-# Please ignore os-specific files using your global ignore settings:
-# E.g. for Mac OS X:
-#     git config --global core.excludesfile ~/.gitignore
-#     echo .DS_Store >> ~/.gitignore
-
-# Ignore compiled BEAM files.
+.rebar
 *.beam
-
-# Ignore generated .app files from custom compiles.
 *.app
-
-# Ignore BEAM crash dumps.
 *.dump
-
-# Ignore all log files.
 log
 logs
