@@ -3,10 +3,14 @@
 
 
 % Macro printing the given message to stderr.
--define (stderr (Msg, Args),
+-define(stderr(Msg, Args),
     io:put_chars(standard_error, io_lib:format(Msg, Args))).
 
--define (stderr (Msg), ?stderr(Msg, [])).
+-define(stderr(Msg), ?stderr(Msg, [])).
+
+-define(cred,   "\e[31m").
+-define(cgreen, "\e[32m").
+-define(cclean, "\e[0m").
 
 
 % The runner will be called without arguments in case no tests were found .
@@ -18,15 +22,23 @@ run_all() ->
 
 run_all(Modules) ->
     % Init statistics.
-    [put(K, 0) || K <- [errors, success, tests]],
+    [put(K, 0) || K <- [errors, tests]],
+    % Init stacktrace store
+    put(stacktrace, []),
 
+    StartAt = erlang:now(),
     lists:foreach(fun run/1, Modules),
+    TimeDiff = timer:now_diff(erlang:now(), StartAt) / 1000000,
 
-    io:format("=========================================~n"
-              "  Failed: ~p.  Success: ~p.  Total: ~p.~n~n", [
-                get(errors),
-                get(success),
-                get(tests) ]),
+    print_errors(),
+
+    Color = case get(errors) of
+        0 -> ?cgreen;
+        _ -> ?cred
+    end,
+
+    io:format("~n~nFinished in ~.2f seconds~n", [TimeDiff]),
+    io:format("~s~p examples, ~p failures~s~n", [Color, get(tests), get(errors), ?cclean]),
 
     erlang:halt(get(errors)).
 
@@ -42,14 +54,13 @@ run(Module) ->
     TryTest = fun (Test) ->
         try
             Test(),
-            io:format("Etest passed.\n")
+            io:format("~s.~s", [?cgreen, ?cclean])
         catch
             _:Error ->
-                io:format("Etest failed.\n"),
+                io:format("~sF~s", [?cred, ?cclean]),
                 inc(errors),
-                io:format("::~p~n", [Error]),
                 CleanTrace = clean_trace(erlang:get_stacktrace()),
-                io:format("Stacktrace:~n~p~n~n", [CleanTrace])
+                append_to_list(stacktrace, {Error, CleanTrace})
         end
     end,
     lists:foreach(TryTest, ToRun).
@@ -81,16 +92,66 @@ testfuns(Module) ->
     MakeApplicative = fun({FunName, _}) ->
         fun() ->
             inc(tests),
-            Msg = lists:flatten(io_lib:format("~p:~p ", [Module, FunName])),
-            io:format(
-                string:left(Msg, 80, $.) ++ "\n" ++
-                string:left("",  80, $=) ++ "\n"
-            ),
-            Module:FunName(),
-            inc(success)
+            Module:FunName()
         end
     end,
-    lists:map(MakeApplicative, TestFuns).
+    lists:map(MakeApplicative, shuffle_list(TestFuns)).
+
+
+% slow shuffling list
+shuffle_list(L) ->
+    random:seed(now()),
+    [X || {_, X} <- lists:sort([{random:uniform(), N} || N <- L])].
+
+
+print_errors() ->
+    io:format("~n"),
+    Stacktraces = lists:reverse(get(stacktrace)),
+    print_errors(Stacktraces, 1).
+
+print_errors([], _CurrentTest) -> ok;
+print_errors([H | Stacktraces], CurrentTest) ->
+    print_error(H, CurrentTest), print_errors(Stacktraces, CurrentTest + 1).
+
+print_error({Error, Stacktrace}, CurrentTest) ->
+    ErrorDescription = case Error of
+        {Assertion, Info} ->
+            {Assertion, maps:from_list(Info)};
+        _ ->
+            Stacktrace
+    end,
+    io:format("~n"),
+    io:format("  ~p) ~s", [CurrentTest, prettify_error(ErrorDescription)]),
+    io:format("~n").
+
+
+prettify_error({Assertion, #{module := Module, line := Line} = Error}) ->
+    io_lib:format("~s.erl:~p~n~s", [Module, Line, ?cred]) ++
+    prettify_error_assertion(Assertion, Error) ++
+    io_lib:format("~s", [?cclean]);
+prettify_error(Stacktrace) ->
+    io_lib:format("~p", Stacktrace).
+
+prettify_error_assertion(assert_match, #{pattern := P, value := V}) ->
+    io_lib:format("      Pattern: ~p~n", [P]) ++
+    io_lib:format("          Got: ~p",   [V]);
+prettify_error_assertion(assert_not_match, #{pattern := P, value := V}) ->
+    io_lib:format("      Pattern: ~p~n", [P]) ++
+    io_lib:format("          Got: ~p",   [V]);
+prettify_error_assertion(assert_exception, #{expression := E, unexpected_success := S}) ->
+    io_lib:format("    Exception: ~p~n", [E]) ++
+    io_lib:format(" Success with: ~p",   [S]);
+prettify_error_assertion(assert_exception, #{expression := E, unexpected_exception := Ex}) ->
+    io_lib:format("    Exception: ~p~n", [E]) ++
+    io_lib:format("  Except with: ~p",   [Ex]);
+prettify_error_assertion(assert_not_exception, #{expression := E, unexpected_exception := Ex}) ->
+    io_lib:format("    Exception: ~p~n", [E]) ++
+    io_lib:format("  Except with: ~p",   [Ex]);
+prettify_error_assertion(_, #{expected := E, value := V}) ->
+    io_lib:format("     Expected: ~p~n", [E]) ++
+    io_lib:format("          Got: ~p",   [V]);
+prettify_error_assertion(_, V) ->
+    io_lib:format("   ~p~n", [maps:to_list(V)]).
 
 
 apply_callbacks(Module, Funs) ->
@@ -122,6 +183,8 @@ clean_trace(Trace0) ->
     {_ETestTrace, TraceR} = lists:split(5, lists:reverse(Trace0)),
     lists:reverse(TraceR).
 
+append_to_list(Name, Value) ->
+    put(Name, [Value | get(Name)]).
 
 inc(Name) ->
     put(Name, get(Name) + 1).
