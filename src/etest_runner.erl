@@ -115,7 +115,7 @@ print_errors([H | Stacktraces], CurrentTest) ->
 
 print_error({Error, Stacktrace}, CurrentTest) ->
     ErrorDescription = case Error of
-        {Assertion, Info} ->
+        {Assertion, Info} when is_list(Info) ->
             {Assertion, maps:from_list(Info)};
         _ ->
             Stacktrace
@@ -130,7 +130,7 @@ prettify_error({Assertion, #{module := Module, line := Line} = Error}) ->
     prettify_error_assertion(Assertion, Error) ++
     io_lib:format("~s", [?cclean]);
 prettify_error(Stacktrace) ->
-    io_lib:format("~p", Stacktrace).
+    io_lib:format("~p", [Stacktrace]).
 
 prettify_error_assertion(assert_match, #{pattern := P, value := V}) ->
     io_lib:format("      Pattern: ~p~n", [P]) ++
