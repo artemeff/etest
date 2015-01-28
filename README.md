@@ -120,7 +120,7 @@ the tests manuall.
 ```erlang
 % Compiler Options for rebar
 {erl_opts, [
-    {src_dirs, ["src", "test"]}
+    {src_dirs, ["src", "spec"]}
 ]}.
 
 % Dependencies
@@ -142,7 +142,7 @@ Before running the tests, they need to be compiled by running
 everything before running the tests to make your life easier.
 
 In your project directory, run ```deps/etest/bin/etest-runner``` to execute all
-tests in the `test` directory.
+tests in the `spec` directory.
 
 Run ```deps/etest/bin/etest-runner test/integration/user_login_test.erl``` to
 execute a single test file.

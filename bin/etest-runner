@@ -2,7 +2,7 @@
 
 # Either test the specified or all files.
 if [ $# -eq 0 ]
-    then test_files=`find apps test -type f -name '*_test.erl' 2>/dev/null`;
+    then test_files=`find apps spec -type f -name '*_test.erl' 2>/dev/null`;
     else test_files=$@;
 fi
 
